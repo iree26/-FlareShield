@@ -20,8 +20,10 @@
  * model and detection logic, kept separate from this UI layer.
  */
 import { useEffect, useRef, useState } from 'react'
-import PipelineView from './components/PipelineView'
+import PipelineHero from './components/PipelineHero'
 import ControlPanel from './components/ControlPanel'
+import StatusSummary from './components/StatusSummary'
+import ReadingsChart from './components/ReadingsChart'
 import IncidentBrief from './components/IncidentBrief'
 import { createInitialState, resetSimulation, startTap, stepSimulation, TICK_MS, NUM_SEGMENTS } from './lib/simulation'
 
@@ -63,10 +65,23 @@ export default function App() {
     setState(resetSimulation())
   }
 
+  const armedSegment = selectedSegment === 'random' ? null : Number(selectedSegment)
+  const chartSegment = state.detection ? state.detection.segment : armedSegment ?? 0
+  const investigatingCount = state.detection ? 0 : state.suspectCounts.filter((c) => c > 0).length
+  const alertCount = state.detection ? 1 : 0
+  const normalCount = NUM_SEGMENTS - investigatingCount - alertCount
+  const systemStatus = state.detection ? 'ALERT' : state.tap ? 'INVESTIGATING' : 'NORMAL'
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 bg-slate-950/90 px-6 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
+      <div className={`alert-vignette ${state.detection ? 'is-active' : ''}`} />
+
+      <header
+        className={`sticky top-0 z-30 border-b px-6 py-4 backdrop-blur transition-colors duration-500 ${
+          state.detection ? 'border-red-800/60 bg-slate-950/95' : 'border-slate-800 bg-slate-950/90'
+        }`}
+      >
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">
               🛡️ Flare<span className="text-cyan-400">Shield</span>
@@ -90,24 +105,48 @@ export default function App() {
           elapsedSeconds={elapsedSeconds}
         />
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-          <div className="lg:col-span-3">
-            <PipelineView nodes={state.nodes} suspectCounts={state.suspectCounts} detection={state.detection} />
-            <p className="mt-3 text-xs leading-relaxed text-slate-500">
-              <strong className="text-slate-400">How to read this:</strong> nodes show live pressure and flow.
-              Click <em>Simulate Illegal Tap</em> to remove fluid from a segment — its downstream flow will drop
-              while the upstream reading stays normal. The segment glows amber while FlareShield confirms the
-              anomaly across several readings (to ignore normal noise), then turns red once the tap is confirmed
-              and an alert fires.
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:items-start">
+          <div className="flex flex-col gap-4 lg:col-span-3">
+            <PipelineHero
+              nodes={state.nodes}
+              suspectCounts={state.suspectCounts}
+              detection={state.detection}
+              armedSegment={armedSegment}
+              tapActive={state.tap != null}
+            />
+
+            <StatusSummary
+              total={NUM_SEGMENTS}
+              normal={normalCount}
+              investigating={investigatingCount}
+              alertCount={alertCount}
+              status={systemStatus}
+            />
+
+            <ReadingsChart
+              upstreamHistory={state.history[chartSegment]}
+              downstreamHistory={state.history[chartSegment + 1]}
+              upstreamLabel={`Node ${chartSegment + 1}`}
+              downstreamLabel={`Node ${chartSegment + 2}`}
+              alerted={state.detection != null && state.detection.segment === chartSegment}
+            />
+
+            <p className="rounded-lg border border-slate-800/60 bg-slate-950/40 px-4 py-3 text-xs leading-relaxed text-slate-500">
+              <strong className="text-slate-400">How to read this:</strong> each node reports live pressure and
+              flow. Click <em>Simulate Illegal Tap</em> to remove fluid from a segment — watch fluid visibly divert
+              at the tap point while its downstream flow drops. The segment glows amber while FlareShield confirms
+              the anomaly across several readings (to ignore normal sensor noise), then turns red once the tap is
+              confirmed and the incident brief on the right fires.
             </p>
           </div>
-          <div className="lg:col-span-1">
+
+          <div className="lg:sticky lg:top-24 lg:col-span-1 lg:self-start">
             <IncidentBrief detection={state.detection} />
           </div>
         </div>
       </main>
 
-      <footer className="mx-auto max-w-6xl px-6 pb-6 text-center text-[11px] text-slate-600">
+      <footer className="mx-auto max-w-7xl px-6 pb-6 text-center text-[11px] text-slate-600">
         All sensor readings on this screen are synthetically generated in-browser for demonstration purposes only —
         no live field data, no network connection, no persistence.
       </footer>

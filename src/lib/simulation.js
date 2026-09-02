@@ -29,6 +29,9 @@ const PRESSURE_LEAK_FACTOR = 0.55 // psi lost downstream per unit of leak
 export const MISMATCH_THRESHOLD = 18 // m3/h — above normal noise band
 export const CONFIRM_TICKS = 3 // consecutive over-threshold readings required
 
+// How many past readings each node keeps for the live mini-charts (one per tick)
+export const HISTORY_LENGTH = 20
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value))
 }
@@ -56,6 +59,8 @@ export function createInitialState() {
     tap: null, // { segment, startTime }
     suspectCounts: Array(NUM_SEGMENTS).fill(0),
     detection: null, // { segment, time, latencyMs, evidence }
+    // Rolling window of recent readings per node, oldest first, for the live mini-charts.
+    history: nodes.map((node) => Array.from({ length: HISTORY_LENGTH }, () => ({ ...node }))),
   }
 }
 
@@ -86,7 +91,7 @@ export function resetSimulation() {
  * so a single noisy sample can never trigger a false alert.
  */
 export function stepSimulation(state, now) {
-  const { nodes, tap, suspectCounts, detection } = state
+  const { nodes, tap, suspectCounts, detection, history } = state
 
   let leak = 0
   if (tap) {
@@ -105,14 +110,17 @@ export function stepSimulation(state, now) {
     }
   })
 
+  const newHistory = history.map((nodeHistory, i) => [...nodeHistory.slice(1), { ...newNodes[i] }])
+
   const mismatches = []
   for (let i = 0; i < NUM_SEGMENTS; i++) {
     mismatches.push(round1(newNodes[i].flow - newNodes[i + 1].flow))
   }
 
   if (detection) {
-    // Already confirmed — hold state until the operator resets.
-    return { nodes: newNodes, tap, suspectCounts, detection }
+    // Already confirmed — hold the alert until the operator resets, but keep
+    // recording readings so the live charts keep moving.
+    return { nodes: newNodes, tap, suspectCounts, detection, history: newHistory }
   }
 
   const newSuspectCounts = mismatches.map((m, i) => (m > MISMATCH_THRESHOLD ? suspectCounts[i] + 1 : 0))
@@ -132,7 +140,7 @@ export function stepSimulation(state, now) {
     }
   }
 
-  return { nodes: newNodes, tap, suspectCounts: newSuspectCounts, detection: newDetection }
+  return { nodes: newNodes, tap, suspectCounts: newSuspectCounts, detection: newDetection, history: newHistory }
 }
 
 export function severityFor(mismatch) {

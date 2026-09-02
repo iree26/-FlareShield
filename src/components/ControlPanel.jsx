@@ -13,11 +13,15 @@ export default function ControlPanel({
   const statusClasses = {
     NORMAL: 'text-emerald-400 border-emerald-600 bg-emerald-950/40',
     INVESTIGATING: 'text-amber-300 border-amber-600 bg-amber-950/40',
-    ALERT: 'text-red-400 border-red-600 bg-red-950/40 animate-pulse',
+    ALERT: 'text-red-300 border-red-500 bg-red-950/70 shadow-[0_0_20px_rgba(239,68,68,0.35)]',
   }[status]
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+    <div
+      className={`rounded-xl border p-4 transition-colors duration-500 ${
+        detection ? 'border-red-700/60 bg-red-950/20' : 'border-slate-800 bg-slate-950/60'
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-xs uppercase tracking-wide text-slate-400" htmlFor="segment-select">
@@ -28,7 +32,7 @@ export default function ControlPanel({
             value={selectedSegment}
             onChange={(e) => onChangeSegment(e.target.value)}
             disabled={tapActive}
-            className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100 disabled:opacity-50"
+            className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100 disabled:opacity-50"
           >
             <option value="random">Random segment</option>
             {Array.from({ length: NUM_SEGMENTS }, (_, i) => (
@@ -56,16 +60,19 @@ export default function ControlPanel({
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {tapActive && (
-            <div className="text-right font-mono text-xs text-slate-400">
-              {detection ? 'Detection latency' : 'Time since tap'}
-              <div className="text-lg text-slate-100">
-                {(detection ? detection.latencyMs / 1000 : elapsedSeconds).toFixed(1)}s
+            <div className="text-right font-mono">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                {detection ? 'Detection latency' : 'Time since tap'}
+              </div>
+              <div className={`font-bold tabular-nums ${detection ? 'text-3xl text-red-300' : 'text-xl text-slate-100'}`}>
+                {(detection ? detection.latencyMs / 1000 : elapsedSeconds).toFixed(1)}
+                <span className="text-sm font-normal text-slate-500">s</span>
               </div>
             </div>
           )}
-          <span className={`rounded-full border px-3 py-1 text-xs font-bold tracking-wide ${statusClasses}`}>
+          <span className={`rounded-full border px-3.5 py-1.5 text-xs font-bold tracking-wide ${statusClasses}`}>
             {status}
           </span>
         </div>
