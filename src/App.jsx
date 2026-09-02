@@ -19,18 +19,22 @@
  * simulated entirely in the browser. See src/lib/simulation.js for the
  * model and detection logic, kept separate from this UI layer.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import PipelineHero from './components/PipelineHero'
 import ControlPanel from './components/ControlPanel'
 import StatusSummary from './components/StatusSummary'
 import ReadingsChart from './components/ReadingsChart'
 import IncidentBrief from './components/IncidentBrief'
+import TabBar from './components/TabBar'
+import RiskRanking from './components/RiskRanking'
 import { createInitialState, resetSimulation, startTap, stepSimulation, TICK_MS, NUM_SEGMENTS } from './lib/simulation'
+import { buildRiskRanking } from './lib/risk'
 
 export default function App() {
   const [state, setState] = useState(createInitialState)
   const [selectedSegment, setSelectedSegment] = useState('random')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [activeTab, setActiveTab] = useState('monitor')
   const tapStartRef = useRef(null)
 
   // Main simulation loop: one detection cycle per tick.
@@ -71,6 +75,12 @@ export default function App() {
   const alertCount = state.detection ? 1 : 0
   const normalCount = NUM_SEGMENTS - investigatingCount - alertCount
   const systemStatus = state.detection ? 'ALERT' : state.tap ? 'INVESTIGATING' : 'NORMAL'
+  const riskRanking = useMemo(() => buildRiskRanking(state), [state])
+
+  const handleSelectSegmentFromRisk = (segment) => {
+    setSelectedSegment(String(segment))
+    setActiveTab('monitor')
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -105,39 +115,47 @@ export default function App() {
           elapsedSeconds={elapsedSeconds}
         />
 
+        <TabBar activeTab={activeTab} onChangeTab={setActiveTab} alertActive={state.detection != null} />
+
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-4 lg:items-start">
           <div className="flex flex-col gap-4 lg:col-span-3">
-            <PipelineHero
-              nodes={state.nodes}
-              suspectCounts={state.suspectCounts}
-              detection={state.detection}
-              armedSegment={armedSegment}
-              tapActive={state.tap != null}
-            />
+            {activeTab === 'monitor' ? (
+              <>
+                <PipelineHero
+                  nodes={state.nodes}
+                  suspectCounts={state.suspectCounts}
+                  detection={state.detection}
+                  armedSegment={armedSegment}
+                  tapActive={state.tap != null}
+                />
 
-            <StatusSummary
-              total={NUM_SEGMENTS}
-              normal={normalCount}
-              investigating={investigatingCount}
-              alertCount={alertCount}
-              status={systemStatus}
-            />
+                <StatusSummary
+                  total={NUM_SEGMENTS}
+                  normal={normalCount}
+                  investigating={investigatingCount}
+                  alertCount={alertCount}
+                  status={systemStatus}
+                />
 
-            <ReadingsChart
-              upstreamHistory={state.history[chartSegment]}
-              downstreamHistory={state.history[chartSegment + 1]}
-              upstreamLabel={`Node ${chartSegment + 1}`}
-              downstreamLabel={`Node ${chartSegment + 2}`}
-              alerted={state.detection != null && state.detection.segment === chartSegment}
-            />
+                <ReadingsChart
+                  upstreamHistory={state.history[chartSegment]}
+                  downstreamHistory={state.history[chartSegment + 1]}
+                  upstreamLabel={`Node ${chartSegment + 1}`}
+                  downstreamLabel={`Node ${chartSegment + 2}`}
+                  alerted={state.detection != null && state.detection.segment === chartSegment}
+                />
 
-            <p className="rounded-lg border border-slate-800/60 bg-slate-950/40 px-4 py-3 text-xs leading-relaxed text-slate-500">
-              <strong className="text-slate-400">How to read this:</strong> each node reports live pressure and
-              flow. Click <em>Simulate Illegal Tap</em> to remove fluid from a segment — watch fluid visibly divert
-              at the tap point while its downstream flow drops. The segment glows amber while FlareShield confirms
-              the anomaly across several readings (to ignore normal sensor noise), then turns red once the tap is
-              confirmed and the incident brief on the right fires.
-            </p>
+                <p className="rounded-lg border border-slate-800/60 bg-slate-950/40 px-4 py-3 text-xs leading-relaxed text-slate-500">
+                  <strong className="text-slate-400">How to read this:</strong> each node reports live pressure and
+                  flow. Click <em>Simulate Illegal Tap</em> to remove fluid from a segment — watch fluid visibly
+                  divert at the tap point while its downstream flow drops. The segment glows amber while FlareShield
+                  confirms the anomaly across several readings (to ignore normal sensor noise), then turns red once
+                  the tap is confirmed and the incident brief on the right fires.
+                </p>
+              </>
+            ) : (
+              <RiskRanking ranking={riskRanking} onSelectSegment={handleSelectSegmentFromRisk} />
+            )}
           </div>
 
           <div className="lg:sticky lg:top-24 lg:col-span-1 lg:self-start">
